@@ -16,6 +16,26 @@ compatible shape from **Create: Copycats+**, including multi-part blocks.
 3. Hold the **new block material** in the other hand.
 4. Right-click the Copycat or the specific part you want to change.
 
+### Standard Copycats
+
+![Replacing a standard Copycat material](docs/gallery/compressed/copycat-replace.gif)
+
+### Create: Copycats+ multi-part blocks
+
+![Replacing one part of a multi-part Copycat](docs/gallery/compressed/copycat-replace-multipart.gif)
+
+### Connected actions
+
+![Applying a material to connected Copycats](docs/gallery/copycat-connected-apply.gif)
+
+![Replacing connected Copycat materials](docs/gallery/copycat-connected-replace.gif)
+
+![Removing materials from connected Copycats](docs/gallery/copycat-connected-remove.gif)
+
+![Replacing connected multi-part Copycats](docs/gallery/copycat-connected-multipart-replace.gif)
+
+![Removing materials from connected multi-part Copycats](docs/gallery/copycat-connected-multipart-remove.gif)
+
 The hand order does not matter: Wrench in the main hand and material in the
 off-hand works, and so does the opposite combination.
 
