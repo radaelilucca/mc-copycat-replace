@@ -1,7 +1,9 @@
 package com.radaeli.copycatreplace.client;
 
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.radaeli.copycatreplace.CopycatReplace;
 import com.radaeli.copycatreplace.config.CopycatReplaceConfig;
 import com.radaeli.copycatreplace.service.BulkMaterialReplacement;
@@ -9,6 +11,7 @@ import com.radaeli.copycatreplace.service.BulkMaterialReplacement.PreviewEstimat
 import com.simibubi.create.content.equipment.wrench.WrenchItem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
@@ -28,16 +31,37 @@ import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.Set;
 
 /** Shows the connected-action key state and a bounded client-side estimate. */
 @EventBusSubscriber(modid = CopycatReplace.MOD_ID, value = Dist.CLIENT)
 public final class ConnectedBulkIndicator {
     private static final int REFRESH_INTERVAL_TICKS = 5;
+    private static final RenderType HIGHLIGHT_LINE_TYPE = RenderType.create(
+            "copycat_replace_connected_outline",
+            DefaultVertexFormat.POSITION_COLOR_NORMAL,
+            VertexFormat.Mode.LINES,
+            1536,
+            RenderType.CompositeState.builder()
+                    .setShaderState(RenderStateShard.RENDERTYPE_LINES_SHADER)
+                    .setLineState(new RenderStateShard.LineStateShard(OptionalDouble.of(3.75D)))
+                    .setLayeringState(RenderStateShard.VIEW_OFFSET_Z_LAYERING)
+                    .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
+                    .setOutputState(RenderStateShard.ITEM_ENTITY_TARGET)
+                    .setWriteMaskState(RenderStateShard.COLOR_DEPTH_WRITE)
+                    .setCullState(RenderStateShard.NO_CULL)
+                    .createCompositeState(false)
+    );
+    private static final float HIGHLIGHT_RED = 0.55F;
+    private static final float HIGHLIGHT_GREEN = 0.08F;
+    private static final float HIGHLIGHT_BLUE = 0.95F;
+    private static final float HIGHLIGHT_ALPHA = 0.90F;
     private static final Component ACTIVE_TEXT =
             Component.translatable("hud.copycat_replace.connected_active");
 
@@ -149,19 +173,21 @@ public final class ConnectedBulkIndicator {
         poseStack.translate(-camera.x, -camera.y, -camera.z);
 
         var buffers = minecraft.renderBuffers().bufferSource();
-        RenderType lineType = RenderType.lines();
-        VertexConsumer lines = buffers.getBuffer(lineType);
+        VertexConsumer lines = buffers.getBuffer(HIGHLIGHT_LINE_TYPE);
         for (LineSegment segment : highlightedLines) {
+            float normalX = segment.normalX();
+            float normalY = segment.normalY();
+            float normalZ = segment.normalZ();
             lines.addVertex(poseStack.last(), segment.x1() / 16.0F, segment.y1() / 16.0F,
                             segment.z1() / 16.0F)
-                    .setColor(0.24F, 0.78F, 0.92F, 0.42F)
-                    .setNormal(poseStack.last(), 0.0F, 1.0F, 0.0F);
+                    .setColor(HIGHLIGHT_RED, HIGHLIGHT_GREEN, HIGHLIGHT_BLUE, HIGHLIGHT_ALPHA)
+                    .setNormal(poseStack.last(), normalX, normalY, normalZ);
             lines.addVertex(poseStack.last(), segment.x2() / 16.0F, segment.y2() / 16.0F,
                             segment.z2() / 16.0F)
-                    .setColor(0.24F, 0.78F, 0.92F, 0.42F)
-                    .setNormal(poseStack.last(), 0.0F, 1.0F, 0.0F);
+                    .setColor(HIGHLIGHT_RED, HIGHLIGHT_GREEN, HIGHLIGHT_BLUE, HIGHLIGHT_ALPHA)
+                    .setNormal(poseStack.last(), normalX, normalY, normalZ);
         }
-        buffers.endBatch(lineType);
+        buffers.endBatch(HIGHLIGHT_LINE_TYPE);
         poseStack.popPose();
     }
 
@@ -235,20 +261,50 @@ public final class ConnectedBulkIndicator {
             Set<FaceCell> cells = facePlane.getValue();
             for (FaceCell cell : cells) {
                 if (!cells.contains(new FaceCell(cell.u() - 1, cell.v()))) {
-                    outline.add(plane.edgeU(cell.u(), cell.v()));
-                }
-                if (!cells.contains(new FaceCell(cell.u() + 1, cell.v()))) {
-                    outline.add(plane.edgeU(cell.u(), cell.v() + 1));
-                }
-                if (!cells.contains(new FaceCell(cell.u(), cell.v() - 1))) {
                     outline.add(plane.edgeV(cell.u(), cell.v()));
                 }
-                if (!cells.contains(new FaceCell(cell.u(), cell.v() + 1))) {
+                if (!cells.contains(new FaceCell(cell.u() + 1, cell.v()))) {
                     outline.add(plane.edgeV(cell.u() + 1, cell.v()));
+                }
+                if (!cells.contains(new FaceCell(cell.u(), cell.v() - 1))) {
+                    outline.add(plane.edgeU(cell.u(), cell.v()));
+                }
+                if (!cells.contains(new FaceCell(cell.u(), cell.v() + 1))) {
+                    outline.add(plane.edgeU(cell.u(), cell.v() + 1));
                 }
             }
         }
-        return List.copyOf(outline);
+        return mergeCollinearSegments(outline);
+    }
+
+    /** Joins neighboring edge cells before rendering so rasterized endpoints don't look dashed. */
+    private static List<LineSegment> mergeCollinearSegments(Set<LineSegment> segments) {
+        Map<LineKey, List<Interval>> lines = new HashMap<>();
+        for (LineSegment segment : segments) {
+            LineKey key = LineKey.of(segment);
+            lines.computeIfAbsent(key, ignored -> new ArrayList<>())
+                    .add(new Interval(key.start(segment), key.end(segment)));
+        }
+
+        List<LineSegment> merged = new ArrayList<>();
+        for (Map.Entry<LineKey, List<Interval>> entry : lines.entrySet()) {
+            List<Interval> intervals = entry.getValue();
+            intervals.sort(Comparator.comparingInt(Interval::start));
+            int start = intervals.getFirst().start();
+            int end = intervals.getFirst().end();
+            for (int i = 1; i < intervals.size(); i++) {
+                Interval next = intervals.get(i);
+                if (next.start() <= end) {
+                    end = Math.max(end, next.end());
+                    continue;
+                }
+                merged.add(entry.getKey().segment(start, end));
+                start = next.start();
+                end = next.end();
+            }
+            merged.add(entry.getKey().segment(start, end));
+        }
+        return List.copyOf(merged);
     }
 
     private record FacePlane(int axis, int plane) {
@@ -334,6 +390,56 @@ public final class ConnectedBulkIndicator {
     }
 
     private record LineSegment(int x1, int y1, int z1, int x2, int y2, int z2) {
+        private float normalX() {
+            return Integer.compare(x2, x1);
+        }
+
+        private float normalY() {
+            return Integer.compare(y2, y1);
+        }
+
+        private float normalZ() {
+            return Integer.compare(z2, z1);
+        }
+    }
+
+    private record LineKey(int axis, int fixedA, int fixedB) {
+        private static LineKey of(LineSegment segment) {
+            if (segment.x1() != segment.x2()) {
+                return new LineKey(0, segment.y1(), segment.z1());
+            }
+            if (segment.y1() != segment.y2()) {
+                return new LineKey(1, segment.x1(), segment.z1());
+            }
+            return new LineKey(2, segment.x1(), segment.y1());
+        }
+
+        private int start(LineSegment segment) {
+            return switch (axis) {
+                case 0 -> segment.x1();
+                case 1 -> segment.y1();
+                default -> segment.z1();
+            };
+        }
+
+        private int end(LineSegment segment) {
+            return switch (axis) {
+                case 0 -> segment.x2();
+                case 1 -> segment.y2();
+                default -> segment.z2();
+            };
+        }
+
+        private LineSegment segment(int start, int end) {
+            return switch (axis) {
+                case 0 -> new LineSegment(start, fixedA, fixedB, end, fixedA, fixedB);
+                case 1 -> new LineSegment(fixedA, start, fixedB, fixedA, end, fixedB);
+                default -> new LineSegment(fixedA, fixedB, start, fixedA, fixedB, end);
+            };
+        }
+    }
+
+    private record Interval(int start, int end) {
     }
 
     private static boolean isWrenchOnly(Player player) {
