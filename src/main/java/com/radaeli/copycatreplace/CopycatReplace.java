@@ -1,11 +1,14 @@
 package com.radaeli.copycatreplace;
 
 import com.mojang.logging.LogUtils;
+import com.radaeli.copycatreplace.config.CopycatReplaceConfig;
 import com.radaeli.copycatreplace.interaction.CopycatReplaceHandler;
+import net.neoforged.fml.ModContainer;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.fml.config.ModConfig;
 import org.slf4j.Logger;
 
 /** Entry point for Create: Copycat Replace!. */
@@ -14,7 +17,8 @@ public final class CopycatReplace {
     public static final String MOD_ID = "copycat_replace";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public CopycatReplace(IEventBus modEventBus) {
+    public CopycatReplace(IEventBus modEventBus, ModContainer modContainer) {
+        modContainer.registerConfig(ModConfig.Type.COMMON, CopycatReplaceConfig.SPEC);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGH, CopycatReplaceHandler::onRightClickBlock);
         LOGGER.info("Create: Copycat Replace! initialized");
     }

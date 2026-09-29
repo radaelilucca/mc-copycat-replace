@@ -1,8 +1,12 @@
 package com.radaeli.copycatreplace.interaction;
 
 import com.radaeli.copycatreplace.service.CopycatReplacementTarget;
+import com.radaeli.copycatreplace.network.BulkReplaceMode;
+import com.radaeli.copycatreplace.service.BulkMaterialReplacement;
+import com.radaeli.copycatreplace.service.CopycatBulkTarget;
 import com.radaeli.copycatreplace.service.MaterialReplacement;
 import com.simibubi.create.content.equipment.wrench.WrenchItem;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -17,29 +21,34 @@ public final class CopycatReplaceHandler {
     }
 
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-        if (event.getHand() != InteractionHand.MAIN_HAND) {
-            return;
-        }
-
         Player player = event.getEntity();
         if (player.isShiftKeyDown() || !player.mayBuild()) {
             return;
         }
 
+        boolean bulkMode = BulkReplaceMode.isDown(player);
         HandSelection selection = selectHands(player);
-        if (selection == null) {
+        InteractionHand wrenchHand = bulkMode ? selectWrenchOnly(player) : null;
+        boolean bulkRemove = wrenchHand != null;
+        if (selection == null && !bulkRemove) {
+            return;
+        }
+        if (selection != null && event.getHand() != InteractionHand.MAIN_HAND) {
+            return;
+        }
+        if (bulkRemove && event.getHand() != wrenchHand) {
             return;
         }
 
         Level level = event.getLevel();
         BlockState state = level.getBlockState(event.getPos());
-        CopycatReplacementTarget target = MaterialReplacement.findTarget(
-                level,
-                event.getPos(),
-                state,
-                event.getHitVec()
+        CopycatBulkTarget bulkTarget = MaterialReplacement.findBulkTarget(
+                level, event.getPos(), state, event.getHitVec()
         );
-        if (target == null) {
+        CopycatReplacementTarget target = selection == null || bulkMode
+                ? null
+                : MaterialReplacement.findTarget(level, event.getPos(), state, event.getHitVec());
+        if (bulkTarget == null || (selection != null && !bulkMode && target == null)) {
             return;
         }
 
@@ -49,7 +58,36 @@ public final class CopycatReplaceHandler {
         event.setCancellationResult(InteractionResult.sidedSuccess(level.isClientSide()));
 
         if (!level.isClientSide()) {
-            target.replaceMaterial(player, selection.materialHand(), selection.materialStack());
+            if (bulkRemove) {
+                int changed = BulkMaterialReplacement.removeConnected(
+                        level, event.getPos(), state, event.getHitVec(), player
+                );
+                if (changed > 0) {
+                    player.displayClientMessage(
+                            Component.translatable("message.copycat_replace.bulk_removed", changed),
+                            true
+                    );
+                }
+            } else if (bulkMode) {
+                boolean applying = bulkTarget.clickedMaterialBlock() == null;
+                int changed = applying
+                        ? BulkMaterialReplacement.applyConnected(
+                                level, event.getPos(), state, event.getHitVec(), player,
+                                selection.materialHand(), selection.materialStack()
+                        )
+                        : BulkMaterialReplacement.replaceConnected(
+                                level, event.getPos(), state, event.getHitVec(), player,
+                                selection.materialHand(), selection.materialStack()
+                        );
+                if (changed > 0) {
+                    String message = applying
+                            ? "message.copycat_replace.bulk_applied"
+                            : "message.copycat_replace.bulk_replaced";
+                    player.displayClientMessage(Component.translatable(message, changed), true);
+                }
+            } else {
+                target.replaceMaterial(player, selection.materialHand(), selection.materialStack());
+            }
         }
     }
 
@@ -64,6 +102,21 @@ public final class CopycatReplaceHandler {
         }
         if (wrenchInOffHand && !wrenchInMainHand && !mainHand.isEmpty()) {
             return new HandSelection(InteractionHand.MAIN_HAND, mainHand);
+        }
+        return null;
+    }
+
+    private static InteractionHand selectWrenchOnly(Player player) {
+        ItemStack mainHand = player.getMainHandItem();
+        ItemStack offHand = player.getOffhandItem();
+        boolean wrenchInMainHand = mainHand.getItem() instanceof WrenchItem;
+        boolean wrenchInOffHand = offHand.getItem() instanceof WrenchItem;
+
+        if (wrenchInMainHand && !wrenchInOffHand && offHand.isEmpty()) {
+            return InteractionHand.MAIN_HAND;
+        }
+        if (wrenchInOffHand && !wrenchInMainHand && mainHand.isEmpty()) {
+            return InteractionHand.OFF_HAND;
         }
         return null;
     }
