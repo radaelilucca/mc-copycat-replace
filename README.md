@@ -28,7 +28,7 @@ materials are removed. Create: Copycats+ applies or removes the part under the
 crosshair on each block, while replacement changes matching parts.
 
 The default global limit is 64 block positions, including the one you click;
-change `max_connected_blocks` in `copycat_replace-common.toml` to adjust it.
+`max_connected_blocks` in `copycat_replace-common.toml` can be set from 1 to 256.
 When the material stack runs out, the connected action stops after the last
 block it can change. An action-bar message reports how many blocks changed.
 
