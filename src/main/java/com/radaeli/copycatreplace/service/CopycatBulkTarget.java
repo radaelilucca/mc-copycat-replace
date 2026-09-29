@@ -19,7 +19,7 @@ public interface CopycatBulkTarget {
 
     boolean containsMaterial(Block materialBlock);
 
-    /** Applies the supplied material to this position's empty parts. */
+    /** Applies the supplied material to this position's selected empty target. */
     BlockState applyToEmpty(
             Player player,
             InteractionHand materialHand,

@@ -5,5 +5,7 @@
   "message.copycat_replace.bulk_applied": "Applied material to %s connected Copycat positions",
   "message.copycat_replace.bulk_replaced": "Changed material in %s connected Copycat positions",
   "message.copycat_replace.bulk_removed": "Removed material from %s connected Copycat positions",
+  "hud.copycat_replace.connected_active": "Connected action: ON",
+  "hud.copycat_replace.estimated_blocks": "Estimated blocks: %s",
   "copycat_replace.config.max_connected_blocks": "Maximum connected Copycat blocks per bulk action"
 }

@@ -3,6 +3,7 @@ package com.radaeli.copycatreplace;
 import com.mojang.logging.LogUtils;
 import com.radaeli.copycatreplace.config.CopycatReplaceConfig;
 import com.radaeli.copycatreplace.interaction.CopycatReplaceHandler;
+import com.radaeli.copycatreplace.network.ConnectedBlockLimitSync;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
@@ -19,7 +20,9 @@ public final class CopycatReplace {
 
     public CopycatReplace(IEventBus modEventBus, ModContainer modContainer) {
         modContainer.registerConfig(ModConfig.Type.COMMON, CopycatReplaceConfig.SPEC);
+        modEventBus.addListener(ConnectedBlockLimitSync::onConfigReloading);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGH, CopycatReplaceHandler::onRightClickBlock);
+        NeoForge.EVENT_BUS.addListener(ConnectedBlockLimitSync::onPlayerLoggedIn);
         LOGGER.info("Create: Copycat Replace! initialized");
     }
 }

@@ -43,7 +43,8 @@ public final class BulkMaterialReplacement {
                 level, origin, originHit, originTarget,
                 entry -> !entry.target().hasCustomMaterial(
                         translateHit(origin, entry.pos(), originHit)
-                )
+                ),
+                CopycatReplaceConfig.MAX_CONNECTED_BLOCKS.get()
         );
         int changed = 0;
         BlockState soundMaterial = null;
@@ -86,7 +87,8 @@ public final class BulkMaterialReplacement {
 
         List<PositionTarget> cluster = findCluster(
                 level, origin, originHit, originTarget,
-                entry -> entry.target().containsMaterial(sourceMaterial)
+                entry -> entry.target().containsMaterial(sourceMaterial),
+                CopycatReplaceConfig.MAX_CONNECTED_BLOCKS.get()
         );
         int changed = 0;
         BlockState soundMaterial = null;
@@ -130,7 +132,8 @@ public final class BulkMaterialReplacement {
 
         List<PositionTarget> cluster = findCluster(
                 level, origin, originHit, originTarget,
-                entry -> entry.target().containsMaterial(sourceMaterial)
+                entry -> entry.target().containsMaterial(sourceMaterial),
+                CopycatReplaceConfig.MAX_CONNECTED_BLOCKS.get()
         );
         int changed = 0;
         BlockState removedMaterial = null;
@@ -160,14 +163,60 @@ public final class BulkMaterialReplacement {
         return MaterialReplacement.findBulkTarget(level, origin, state, hit);
     }
 
+    /** Read-only, bounded estimate for the client HUD. */
+    public static PreviewEstimate previewConnected(
+            Level level,
+            BlockPos origin,
+            BlockState originState,
+            BlockHitResult originHit,
+            Player player,
+            ItemStack materialStack,
+            boolean removing,
+            int configuredMaximum
+    ) {
+        CopycatBulkTarget originTarget = findOrigin(level, origin, originState, originHit);
+        if (originTarget == null) {
+            return new PreviewEstimate(0, List.of());
+        }
+
+        Block sourceMaterial = originTarget.clickedMaterialBlock();
+        if (removing && sourceMaterial == null) {
+            return new PreviewEstimate(0, List.of());
+        }
+
+        boolean applying = !removing && sourceMaterial == null;
+        int previewMaximum = Math.min(configuredMaximum, PREVIEW_SCAN_LIMIT);
+        Predicate<PositionTarget> isEligible = applying
+                ? entry -> !entry.target().hasCustomMaterial(translateHit(origin, entry.pos(), originHit))
+                : entry -> entry.target().containsMaterial(sourceMaterial);
+        List<PositionTarget> cluster = findCluster(
+                level, origin, originHit, originTarget, isEligible, previewMaximum
+        );
+
+        int count = cluster.size();
+        if (!removing && !player.isCreative()) {
+            count = Math.min(count, materialStack.getCount());
+        }
+        List<BlockPos> highlightedPositions = cluster.stream()
+                .limit(count)
+                .map(entry -> entry.pos().immutable())
+                .toList();
+        return new PreviewEstimate(
+                count,
+                highlightedPositions
+        );
+    }
+
+    private static final int PREVIEW_SCAN_LIMIT = CopycatReplaceConfig.MAX_CONNECTED_BLOCKS_LIMIT;
+
     private static List<PositionTarget> findCluster(
             Level level,
             BlockPos origin,
             BlockHitResult originHit,
             CopycatBulkTarget originTarget,
-            Predicate<PositionTarget> isEligible
+            Predicate<PositionTarget> isEligible,
+            int maximum
     ) {
-        int maximum = CopycatReplaceConfig.MAX_CONNECTED_BLOCKS.get();
         List<PositionTarget> result = new ArrayList<>(Math.min(maximum, 64));
         ArrayDeque<BlockPos> pending = new ArrayDeque<>();
         Set<BlockPos> visited = new HashSet<>();
@@ -226,5 +275,11 @@ public final class BulkMaterialReplacement {
     }
 
     private record PositionTarget(BlockPos pos, CopycatBulkTarget target) {
+    }
+
+    public record PreviewEstimate(int count, List<BlockPos> positions) {
+        public PreviewEstimate {
+            positions = List.copyOf(positions);
+        }
     }
 }
