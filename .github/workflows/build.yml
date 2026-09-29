@@ -1,6 +1,9 @@
-name: Build
+name: Build and Release
 
-on: [push, pull_request]
+on:
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build:
@@ -21,5 +24,58 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
       - name: Build with Gradle
         run: ./gradlew build
+
+      - name: Read release metadata
+        id: release
+        shell: bash
+        run: |
+          mod_id="$(awk -F= '$1 == "mod_id" { print $2; exit }' gradle.properties)"
+          mod_version="$(awk -F= '$1 == "mod_version" { print $2; exit }' gradle.properties)"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "${GITHUB_REF_NAME#v}" != "$mod_version" ]]; then
+            echo "::error::Release tag $GITHUB_REF_NAME does not match mod_version $mod_version"
+            exit 1
+          fi
+          echo "jar_name=${mod_id}-neoforge-${mod_version}.jar" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release changelog
+        id: changelog
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          awk -v version="$version" '
+            index($0, "## [" version "]") == 1 { found = 1; next }
+            /^## \[/ && found { exit }
+            found { print }
+          ' CHANGELOG.md > release-changelog.md
+
+          if [[ ! -s release-changelog.md ]]; then
+            echo "::error::No CHANGELOG.md section found for ${RELEASE_TAG}"
+            exit 1
+          fi
+
+          {
+            echo "body<<CHANGELOG_EOF"
+            cat release-changelog.md
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload to CurseForge
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: itsmeow/curseforge-upload@v3
+        with:
+          token: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          project_id: '1662789'
+          game_endpoint: minecraft
+          file_path: build/libs/${{ steps.release.outputs.jar_name }}
+          game_versions: Minecraft 1.21.1,NeoForge
+          release_type: release
+          changelog: ${{ steps.changelog.outputs.body }}
+          changelog_type: markdown
