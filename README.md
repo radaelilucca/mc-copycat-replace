@@ -19,6 +19,19 @@ compatible shape from **Create: Copycats+**, including multi-part blocks.
 The hand order does not matter: Wrench in the main hand and material in the
 off-hand works, and so does the opposite combination.
 
+Hold the **Bulk Action on Connected Copycats** key while right-clicking to
+apply, replace, or remove materials across face-connected blocks of the same
+Copycat type. The key defaults to **Left Alt** and can be changed in **Controls**.
+With a material in hand, an empty Copycat receives it, while matching decorated
+Copycats have their material replaced. With an empty other hand, matching
+materials are removed. Create: Copycats+ applies or removes the part under the
+crosshair on each block, while replacement changes matching parts.
+
+The default global limit is 64 block positions, including the one you click;
+change `max_connected_blocks` in `copycat_replace-common.toml` to adjust it.
+When the material stack runs out, the connected action stops after the last
+block it can change. An action-bar message reports how many blocks changed.
+
 Hold **Sneak** while right-clicking to bypass the replacement interaction. The Wrench will
 then use its normal Create interaction, including removing the Copycat block.
 
