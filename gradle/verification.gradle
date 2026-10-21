@@ -1,0 +1,71 @@
+// A separate source set keeps all validation helpers out of distribution JARs.
+sourceSets {
+    gameTest {
+        java.srcDir rootProject.file('common/src/gameTest/java')
+        resources.srcDir rootProject.file('common/src/gameTest/resources')
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
+if (project.name == 'forge1201') {
+    minecraft.runs.gameTestServer { mods { "${mod_id}_tests" { source sourceSets.gameTest } } }
+    minecraft.runs {
+        clientSmoke {
+            parent minecraft.runs.client
+            workingDirectory file(providers.gradleProperty('withoutCopycats').isPresent() ? 'build/client-smoke-create' : 'build/client-smoke-copycats')
+            property 'copycat_replace.clientSmoke', 'true'
+            mods { "${mod_id}_tests" { source sourceSets.gameTest } }
+        }
+    }
+} else {
+    neoForge.mods { "${mod_id}_tests" { sourceSet sourceSets.gameTest } }
+    neoForge.runs {
+        clientSmoke {
+            client()
+            gameDirectory = file(providers.gradleProperty('withoutCopycats').isPresent() ? 'build/client-smoke-create' : 'build/client-smoke-copycats')
+            systemProperty 'copycat_replace.clientSmoke', 'true'
+        }
+    }
+    neoForge.runs.configureEach {
+        loadedMods = name in ['gameTestServer', 'clientSmoke'] ? [neoForge.mods[mod_id], neoForge.mods["${mod_id}_tests"]] : [neoForge.mods[mod_id]]
+    }
+}
+tasks.matching { it.name == 'runGameTestServer' }.configureEach { timeout = java.time.Duration.ofMinutes(8) }
+tasks.matching { it.name == 'runClientSmoke' }.configureEach {
+    timeout = java.time.Duration.ofMinutes(10)
+    maxHeapSize = '2G'
+    def result = file(providers.gradleProperty('withoutCopycats').isPresent() ? 'build/client-smoke-create/result.txt' : 'build/client-smoke-copycats/result.txt')
+    doFirst { result.parentFile.mkdirs(); result.text = 'RUNNING\n' }
+    doLast { if (!result.text.startsWith('PASS\n')) throw new GradleException("Client validation failed; inspect ${result}") }
+}
+tasks.register('verifyArtifact') {
+    group = 'verification'
+    dependsOn 'jar'
+    if (project.name == 'forge1201') { dependsOn 'reobfJar' }
+    doLast {
+        def archive = new java.util.zip.ZipFile(tasks.named('jar').get().archiveFile.get().asFile)
+        try {
+            def metadataName = project.name == 'forge1201' ? 'META-INF/mods.toml' : 'META-INF/neoforge.mods.toml'
+            assert archive.getEntry(metadataName) != null : 'Missing loader metadata'
+            assert archive.getEntry(project.name == 'forge1201' ? 'META-INF/neoforge.mods.toml' : 'META-INF/mods.toml') == null : 'Wrong loader metadata leaked into artifact'
+            assert archive.getEntry('META-INF/LICENSE') != null : 'Missing license'
+            assert archive.getEntry('assets/copycat_replace/lang/en_us.json') != null : 'Missing translations'
+            assert archive.getEntry('com/radaeli/copycatreplace/CopycatReplace.class') != null : 'Missing entrypoint'
+            assert !archive.entries().toList().any { it.name.contains('/tests/') || it.name.startsWith('META-INF/jarjar/') } : 'Test classes or dependencies leaked into artifact'
+            def text = archive.getInputStream(archive.getEntry(metadataName)).getText('UTF-8')
+            assert !text.contains('${') : 'Unexpanded metadata'
+            assert text.contains('copycat_replace') && text.contains(project.mod_version.toString()) : 'Wrong mod identity'
+            assert archive.getInputStream(archive.getEntry('META-INF/LICENSE')).getText('UTF-8') == rootProject.file('LICENSE').getText('UTF-8') : 'License differs from repository'
+            if (project.name == 'forge1201') {
+                assert text.contains('versionRange="[6.0.8]"') : 'Forge must target Create 6.0.8'
+                assert text.contains('mandatory=false') : 'Copycats+ must stay optional'
+            }
+            def bytes = archive.getInputStream(archive.getEntry('com/radaeli/copycatreplace/CopycatReplace.class')).bytes
+            def expected = project.name == 'forge1201' ? 61 : 65
+            assert ((bytes[6] & 255) << 8 | (bytes[7] & 255)) == expected : 'Wrong Java target'
+            logger.lifecycle("Verified ${project.name} distribution artifact")
+        } finally { archive.close() }
+    }
+}
+tasks.named('check') { dependsOn 'verifyArtifact' }
+apply from: rootProject.file('gradle/multiplayer-validation.gradle')

@@ -25,9 +25,7 @@ public final class ConnectedBlockLimitSync {
         }
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server != null) {
-            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                sendToPlayer(player);
-            }
+            server.execute(() -> server.getPlayerList().getPlayers().forEach(ConnectedBlockLimitSync::sendToPlayer));
         }
     }
 

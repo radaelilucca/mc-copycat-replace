@@ -1,0 +1,7 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+[[mods]]
+modId="copycat_replace_tests"
+version="1"
+displayName="Copycat Replace validation (development only)"

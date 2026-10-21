@@ -1,0 +1,130 @@
+import groovy.json.JsonOutput
+
+def suffix = providers.gradleProperty('withoutCopycats').isPresent() ? 'create' : 'copycats'
+def coordinator = layout.buildDirectory.dir("multiplayer-${suffix}").get().asFile
+def port = project.name == 'forge1201' ? 25585 : 25586
+if (project.name == 'forge1201') {
+    minecraft.runs {
+        serverMulti {
+            parent minecraft.runs.server
+            workingDirectory new File(coordinator, 'server')
+            property 'copycat_replace.multiplayerServer', 'true'
+            property 'copycat_replace.coordinator', coordinator.absolutePath
+            mods { "${mod_id}_tests" { source sourceSets.gameTest } }
+        }
+        ['Actor', 'Observer'].each { role ->
+            create("client${role}") {
+                parent minecraft.runs.client
+                workingDirectory new File(coordinator, role.toLowerCase())
+                property 'copycat_replace.multiplayer', role
+                property 'copycat_replace.coordinator', coordinator.absolutePath
+                property 'copycat_replace.address', "127.0.0.1:${port}"
+                args '--username', "Copycat${role}", '--width', '960', '--height', '640'
+                mods { "${mod_id}_tests" { source sourceSets.gameTest } }
+            }
+        }
+    }
+} else {
+    neoForge.runs {
+        serverMulti {
+            server(); gameDirectory = new File(coordinator, 'server'); programArgument '--nogui'
+            systemProperty 'copycat_replace.multiplayerServer', 'true'
+            systemProperty 'copycat_replace.coordinator', coordinator.absolutePath
+            loadedMods = [neoForge.mods[mod_id], neoForge.mods["${mod_id}_tests"]]
+        }
+        ['Actor', 'Observer'].each { role ->
+            create("client${role}") {
+                client(); gameDirectory = new File(coordinator, role.toLowerCase())
+                systemProperty 'copycat_replace.multiplayer', role
+                systemProperty 'copycat_replace.coordinator', coordinator.absolutePath
+                systemProperty 'copycat_replace.address', "127.0.0.1:${port}"
+                programArguments.addAll '--username', "Copycat${role}", '--width', '960', '--height', '640'
+                loadedMods = [neoForge.mods[mod_id], neoForge.mods["${mod_id}_tests"]]
+            }
+        }
+    }
+}
+
+// Export JavaExec invocations so all three processes can run without concurrent Gradle project locks.
+tasks.register('exportValidationLaunches') {
+    group = 'verification'
+    def runNames = ['runServerMulti', 'runClientActor', 'runClientObserver']
+    dependsOn {
+        runNames.collectMany { name ->
+            def run = tasks.named(name).get()
+            run.taskDependencies.getDependencies(run).toList()
+        }
+    }
+    doLast {
+        coordinator.mkdirs()
+        def exports = [:]
+        runNames.each { name ->
+            def run = tasks.named(name).get()
+            // Mirror the configuration portion of ForgeGradle 6.0.54's MinecraftRunTask.exec.
+            if (project.name == 'forge1201') {
+                def config = run.runConfig.get()
+                def generator = run.class.classLoader.loadClass('net.minecraftforge.gradle.common.util.runs.RunConfigGenerator')
+                def invoke = { String method, Object... values ->
+                    def target = generator.declaredMethods.find { it.name == method }
+                    target.accessible = true
+                    target.invoke(null, values)
+                }
+                def roots = invoke('mapModClassesToGradle', project, config)
+                def tokens = invoke('configureTokensLazy', project, config, roots, run.minecraftArtifacts, run.runtimeClasspathArtifacts)
+                run.workingDir = file(config.workingDirectory)
+                run.args(config.args.collect { config.replace(tokens, it) })
+                run.jvmArgs(config.jvmArgs.collect { config.replace(tokens, it) })
+                if (config.client) run.jvmArgs(run.additionalClientArgs.get().collect { config.replace(tokens, it) })
+                config.environment.each { key, value -> run.environment(key, config.replace(tokens, value)) }
+                config.properties.each { key, value -> run.systemProperty(key, config.replace(tokens, value)) }
+                config.allSources.each { run.classpath(it.runtimeClasspath) }
+            }
+            if (run.hasProperty('classpathProvider')) {
+                run.classpath(run.classpathProvider)
+                run.environment(run.environmentProperty.get())
+                run.workingDir = run.gameDirectory.get().asFile
+            }
+            run.executable = run.javaLauncher.get().executablePath.asFile.absolutePath
+            run.workingDir.mkdirs()
+            def command = [run.executable] + run.allJvmArgs + run.jvmArguments.getOrElse([])
+            if (!run.classpath.empty) command += ['-classpath', run.classpath.asPath]
+            command += [run.mainClass.get()] + run.args + run.argumentProviders.collectMany { it.asArguments().toList() }
+            command = [command[0], '-Xmx2G'] + command.drop(1).findAll { !it.toString().startsWith('-Xmx') }
+            exports[name] = [command: command, cwd: run.workingDir.absolutePath,
+                environment: run.environment.findAll { key, value -> System.getenv(key)?.toString() != value.toString() }]
+        }
+        def serverDir = new File(coordinator, 'server'); serverDir.mkdirs()
+        new File(serverDir, 'eula.txt').text = 'eula=true\n'
+        new File(serverDir, 'server.properties').text = "server-ip=127.0.0.1\nserver-port=${port}\nonline-mode=false\nspawn-protection=0\nview-distance=3\nsimulation-distance=3\nlevel-type=minecraft\\:flat\ngenerate-structures=false\nmax-tick-time=180000\n"
+        // Preserve variant-specific argument files; later exports may otherwise overwrite them.
+        def argumentFiles = files(fileTree(layout.buildDirectory.dir('moddev')) { include '*.txt', '*.xml' },
+                fileTree(layout.buildDirectory.dir('classpath')) { include '*.txt' }).files
+        def snapshots = argumentFiles.collectEntries { original ->
+            def relative = layout.buildDirectory.get().asFile.toPath().relativize(original.toPath()).toString()
+            [(original.absolutePath): new File(coordinator, "launch-config/${relative}").absolutePath]
+        }
+        def rewrite = { String value ->
+            snapshots.each { original, copy ->
+                value = value.replace(original, copy).replace(original.replace('\\', '\\\\'), copy.replace('\\', '\\\\'))
+                        .replace(original.replace('\\', '/'), copy.replace('\\', '/'))
+            }
+            value
+        }
+        argumentFiles.each { original ->
+            def copy = file(snapshots[original.absolutePath]); copy.parentFile.mkdirs(); copy.text = rewrite(original.text)
+        }
+        exports.values().each { it.command = it.command.collect { rewrite(it.toString()) } }
+        new File(coordinator, 'launches.json').text = JsonOutput.prettyPrint(JsonOutput.toJson(exports))
+        logger.lifecycle("Exported validation launches to ${coordinator}")
+    }
+}
+if (project.name == 'forge1201') {
+    tasks.register('validationJar', Jar) {
+        dependsOn tasks.named('gameTestClasses')
+        archiveBaseName = 'copycat_replace_tests'
+        destinationDirectory = layout.buildDirectory.dir('validation')
+        from sourceSets.gameTest.output
+    }
+    reobf { validationJar {} }
+    tasks.named('validationJar') { finalizedBy 'reobfValidationJar' }
+}

@@ -2,18 +2,120 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "NeoForge: Build",
+      "label": "Build All",
       "type": "process",
       "command": "${workspaceFolder}\\gradlew.bat",
       "args": [
-        "build"
+        "buildAll",
+        "--console=plain"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
       },
+      "problemMatcher": [
+        "$gradle"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
       "group": {
         "kind": "build",
         "isDefault": true
+      }
+    },
+    {
+      "label": "Forge: Build",
+      "type": "process",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": [
+        ":forge1201:build",
+        "--console=plain"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        "$gradle"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "NeoForge: Build",
+      "type": "process",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": [
+        ":neoforge:build",
+        "--console=plain"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        "$gradle"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Verify All",
+      "type": "process",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": [
+        "verifyAll",
+        "--console=plain"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        "$gradle"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Verify without Copycats+",
+      "type": "process",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": [
+        "verifyAll",
+        "--console=plain",
+        "-PwithoutCopycats"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        "$gradle"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Forge: Run Client",
+      "type": "process",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": [
+        "runForgeClient",
+        "--console=plain"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
       },
       "problemMatcher": [
         "$gradle"
@@ -29,7 +131,88 @@
       "type": "process",
       "command": "${workspaceFolder}\\gradlew.bat",
       "args": [
-        "runClient"
+        "runNeoForgeClient",
+        "--console=plain"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        "$gradle"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Forge: Run Server",
+      "type": "process",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": [
+        "runForgeServer",
+        "--console=plain"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        "$gradle"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "NeoForge: Run Server",
+      "type": "process",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": [
+        "runNeoForgeServer",
+        "--console=plain"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        "$gradle"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Forge: GameTests",
+      "type": "process",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": [
+        "runForgeGameTests",
+        "--console=plain"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        "$gradle"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "NeoForge: GameTests",
+      "type": "process",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": [
+        "runNeoForgeGameTests",
+        "--console=plain"
       ],
       "options": {
         "cwd": "${workspaceFolder}"

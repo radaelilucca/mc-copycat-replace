@@ -1,5 +1,7 @@
 # Plano de implementação — Create: Copycat Replace!
 
+> Documento histórico da implementação inicial NeoForge. A arquitetura multiloader e os comandos atuais estão no [índice técnico](docs/README.md).
+
 ## Objetivo
 
 Permitir que o jogador substitua diretamente o material de um copycat ao clicar nele com:

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-10-21
+
+### Added
+
+- Added a Forge 1.20.1 version for Create 6.0.8, with support for Copycats+ 3.0.4.
+
 ## [0.1.0] - 2026-09-29
 
 ### Added

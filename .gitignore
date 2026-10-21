@@ -1,5 +1,6 @@
 ### Gradle ###
 .gradle
+.gradle-*/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/**/build/
@@ -37,6 +38,7 @@ bin/
 
 ### Minecraft Modding ###
 run/
+runs/
 !**/src/**/run/
 **/src/generated/**/.cache/
 repo/

@@ -6,6 +6,15 @@ Create: Copycat Replace! is a small quality-of-life addon for **Create**. Hold a
 
 It works with Create's native Copycats and adds optional support for every compatible shape from **Create: Copycats+**, including multi-part blocks.
 
+## Supported versions
+
+| Minecraft | Loader | Create | Optional Copycats+ |
+|---|---|---|---|
+| 1.20.1 | Forge 47.4.0+ | 6.0.8 | 3.0.4 |
+| 1.21.1 | NeoForge 21.1.236+ | 6.0.10 | 3.0.4 |
+
+Install the matching Copycat Replace file alongside Create on both the client and server.
+
 ## How to use
 
 <ol>
